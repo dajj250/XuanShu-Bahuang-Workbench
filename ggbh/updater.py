@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import ssl
+import subprocess
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 
@@ -35,6 +38,29 @@ def verified_ssl_context():
     return context
 
 
+def powershell_latest_release(repository, timeout=8):
+    """Use Windows' native TLS stack when frozen Python cannot build a valid chain."""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise ValueError("GitHub 仓库地址格式无效")
+    uri = f"https://api.github.com/repos/{repository}/releases/latest"
+    script = (
+        "$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';"
+        "[Console]::OutputEncoding=[Text.Encoding]::UTF8;"
+        "$h=@{'User-Agent'='XuanShu-Workbench-Updater/1.1.1';'Accept'='application/vnd.github+json'};"
+        f"$r=Invoke-RestMethod -Uri '{uri}' -Headers $h -TimeoutSec {int(timeout)};"
+        "@{tag_name=$r.tag_name;html_url=$r.html_url;name=$r.name}|ConvertTo-Json -Compress"
+    )
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+        capture_output=True, encoding="utf-8", errors="replace", timeout=timeout + 5,
+        creationflags=flags, check=False,
+    )
+    if result.returncode:
+        raise ValueError((result.stderr or "Windows 网络请求失败").strip())
+    return json.loads(result.stdout.strip())
+
+
 def latest_release(repository, timeout=8, opener=None):
     repository = str(repository or "").strip().strip("/")
     if not repository or "/" not in repository:
@@ -44,11 +70,17 @@ def latest_release(repository, timeout=8, opener=None):
         headers={"Accept": "application/vnd.github+json", "User-Agent": "XuanShu-Workbench-Updater/1.1.1"},
     )
     if opener is None:
-        response_context = urlopen(request, timeout=timeout, context=verified_ssl_context())
+        try:
+            response_context = urlopen(request, timeout=timeout, context=verified_ssl_context())
+            with response_context as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except (URLError, ssl.SSLError, OSError):
+            if os.name != "nt":
+                raise
+            data = powershell_latest_release(repository, timeout)
     else:
-        response_context = opener(request, timeout=timeout)
-    with response_context as response:
-        data = json.loads(response.read().decode("utf-8"))
+        with opener(request, timeout=timeout) as response:
+            data = json.loads(response.read().decode("utf-8"))
     tag = str(data.get("tag_name") or data.get("name") or "").strip()
     page = str(data.get("html_url") or f"https://github.com/{repository}/releases").strip()
     if not tag:

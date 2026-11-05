@@ -1,5 +1,7 @@
 import io
 import unittest
+from unittest.mock import patch
+from urllib.error import URLError
 
 from ggbh.updater import is_newer, latest_release, version_tuple
 
@@ -32,6 +34,14 @@ class UpdaterTests(unittest.TestCase):
 
         result = latest_release("example/project", timeout=3, opener=opener)
         self.assertEqual(result["version"], "1.2.0")
+
+    def test_windows_fallback_uses_native_tls(self):
+        native = {"tag_name": "v1.1.2", "html_url": "https://github.com/example/project/releases/tag/v1.1.2", "name": "修正版"}
+        with patch("ggbh.updater.urlopen", side_effect=URLError("certificate verify failed")), \
+             patch("ggbh.updater.powershell_latest_release", return_value=native) as fallback:
+            result = latest_release("example/project", timeout=3)
+        fallback.assert_called_once_with("example/project", 3)
+        self.assertEqual(result["version"], "1.1.2")
 
 
 if __name__ == "__main__":
