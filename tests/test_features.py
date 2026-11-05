@@ -10,7 +10,8 @@ from ggbh.features import (Catalog, UNIT_CACHE, discover_saves, inventory, set_q
                            editable_page_rows, add_relationship, remove_relationship, relationship_tables,
                            perfect_skill_comprehension,
                            enable_skill_effects, fate_entries, add_fate, add_fates, replace_fate, delete_fate,
-                           special_attribute_rows, skill_records, update_skill, pinyin_initials)
+                           special_attribute_rows, skill_records, skill_effect_candidates,
+                           update_skill, pinyin_initials)
 from ggbh.features import (potmon_records, set_potmon_contract, update_potmon, potmon_skills,
                            add_potmon_skills, delete_potmon_skills, appearance_data, update_appearance)
 from ggbh.features import (school_data, update_school, update_school_main_skills, school_members,
@@ -321,6 +322,21 @@ class FeatureTests(unittest.TestCase):
         self.assertEqual(role["k"]["skill-1"]["w"], 99)
         self.doc.reset()
         self.assertEqual(role["k"]["skill-1"]["q"]["w"], [2, 0, 1, 1, 11432, 1, 31, -1, 20])
+
+    def test_skill_effect_numbers_follow_grade_and_payload_length(self):
+        role = self.doc.data["allUnit"]["a"]
+        role["k"] = {"skill-1": {"q": {"w": [2, 0, 0, 2, 22111, 3, 41, 42, -1, 600, 300]},
+                                      "w": 1}}
+        catalog = Catalog()
+        catalog.skill_info = {"22111": {"name": "测试功法"}}
+        catalog.skill_types = {"2": {"name": "绝技"}}
+        catalog.skill_grades = {"3": {"name": "结晶"}}
+        catalog.skill_effects = [{"skill_id": 22111, "id": 41, "name": "伤害提升&demo&%"}]
+        catalog.skill_values = {"&demo+6": {"values": [10, 20, 30], "scale": "x1|f0"}}
+        record = skill_records(self.doc, self.a, catalog)[0]
+        self.assertEqual(record["effects"], [41, 42])
+        self.assertEqual(record["effect_exp"], [600, 300])
+        self.assertEqual(skill_effect_candidates(catalog, 2, 22111, 3)[0][1], "伤害提升30%")
 
     def test_four_fate_sections_add_replace_delete_and_reset(self):
         role = self.doc.data["allUnit"]["a"]

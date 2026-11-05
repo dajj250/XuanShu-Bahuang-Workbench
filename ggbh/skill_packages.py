@@ -302,7 +302,7 @@ def build_package(name, source_role, skills, template_id=None):
         raise DataError("来源角色没有可打包的功法")
     return {
         "format": "XuanShu.SkillPackage/1",
-        "version": "1.1.1",
+        "version": "1.1.2",
         "name": str(name or "未命名技能包"),
         "sourceRole": dict(source_role or {}),
         "templateId": template_id,

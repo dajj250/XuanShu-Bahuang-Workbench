@@ -42,7 +42,7 @@ def resource_path(*parts):
 class Editor(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("玄枢 · 八荒编修台 1.1.1")
+        self.title("玄枢 · 八荒编修台 1.1.2")
         self.geometry("1280x850")
         self.minsize(1000, 650)
         self.configure(bg="#eef2f6")
@@ -80,7 +80,7 @@ class Editor(tk.Tk):
         header = ttk.Frame(self, padding=20)
         header.pack(fill="x")
         ttk.Label(header, text="玄枢  /  八荒编修台", font=("Microsoft YaHei UI", 21, "bold")).pack(side="left")
-        ttk.Label(header, text="1.1.1 · 官方模组桥接版", foreground="#62748c").pack(side="right")
+        ttk.Label(header, text="1.1.2 · 官方模组桥接版", foreground="#62748c").pack(side="right")
         toolbar = ttk.Frame(self, padding=(20, 0, 20, 12))
         toolbar.pack(fill="x")
         for label, action in [("读取最新存档", self.open_latest_save), ("存档列表", self.choose_save),
@@ -120,7 +120,7 @@ class Editor(tk.Tk):
             "2. 在属性、关系、功法、物品、壶妖、形象、宗门页面暂存修改。\n"
             "3. 检查修改预览，导出到新文件；原文件保持不变并生成字节备份。\n"
             "4. 游戏内修改请进入实时连接页，读取当前玩家后点击引用修改。\n\n"
-            "1.1.1 已实现\n\n基础属性实时读写；基础值和游戏显示值分开显示。\n"
+            "1.1.2 已实现\n\n基础属性实时读写；基础值和游戏显示值分开显示。\n"
             "先天气运、后天气运、逆天改命、道心四分栏，支持 ID/名称搜索及添加、替换、删除。\n"
             "属性页增加性格、爱好、关系、道心、身份五个并列栏目，统一点击引用修改。\n"
             "关系双向添加、属性页多选批量添加、好友管理和批量解除好友；普通物品新增和数量修改。\n"
@@ -731,6 +731,7 @@ class Editor(tk.Tk):
         self.skill_info_boxes["传承"].configure(values=["否 · 0", "是 · 1"], state="readonly")
         self.skill_info_boxes["功法类型"].bind("<<ComboboxSelected>>", lambda _: self.refresh_skill_name_choices())
         self.skill_info_boxes["功法名称"].bind("<<ComboboxSelected>>", lambda _: self.refresh_skill_effect_choices())
+        self.skill_info_boxes["所用境界"].bind("<<ComboboxSelected>>", lambda _: self.refresh_skill_effect_choices())
 
         effects = ttk.LabelFrame(right, text="词条修改栏 · 词条 1–11 与对应参悟程度", padding=8)
         effects.pack(fill="both", expand=True, pady=(8, 0))
@@ -1998,12 +1999,13 @@ class Editor(tk.Tk):
         try:
             type_id = int(self.value_id(self.skill_type_value.get()))
             info_id = int(self.value_id(self.skill_name_value.get()))
+            grade_id = int(self.value_id(self.skill_grade_value.get()))
         except (TypeError, ValueError):
             choices = ["空 · 0"]
         else:
             choices = ["空 · 0"] + [
                 f"{str(name).replace(chr(10), ' ')[:90]} · {effect_id}"
-                for effect_id, name in skill_effect_candidates(self.catalog, type_id, info_id)]
+                for effect_id, name in skill_effect_candidates(self.catalog, type_id, info_id, grade_id)]
         for box in self.skill_effect_boxes:
             box.configure(values=choices)
         self.skill_effect_candidate_box.configure(values=choices[1:])
@@ -2022,7 +2024,8 @@ class Editor(tk.Tk):
         self.skill_inheritance_value.set(("是 · 1" if record["inheritance"] else "否 · 0"))
         self.skill_progress_value.set(str(record["progress"]))
         self.refresh_skill_effect_choices()
-        names = dict(skill_effect_candidates(self.catalog, record["type_id"], record["info_id"]))
+        names = dict(skill_effect_candidates(
+            self.catalog, record["type_id"], record["info_id"], record["grade_id"]))
         ids = list(record["effects"]) + [0] * (11 - len(record["effects"]))
         exps = list(record["effect_exp"]) + [0] * (11 - len(record["effect_exp"]))
         for index, (effect_var, exp_var) in enumerate(self.skill_effect_vars):

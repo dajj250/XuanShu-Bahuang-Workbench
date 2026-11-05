@@ -4,6 +4,7 @@ build/
 build-0.6/
 dist/
 package/
+update-*/
 .idea/
 .vscode/
 *.cache

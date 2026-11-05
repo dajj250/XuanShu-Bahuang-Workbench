@@ -8,6 +8,7 @@ import copy
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import secrets
 import string
@@ -151,6 +152,7 @@ class Catalog:
         self.skill_info = {}
         self.skill_grades = {}
         self.skill_effects = []
+        self.skill_values = {}
         base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
         path = base / "catalog.json"
         if path.is_file():
@@ -164,7 +166,7 @@ class Catalog:
             data = json.loads(reference.read_text(encoding="utf-8"))
             for name in ("born_luck", "reverse_fate", "taoist_seeds", "taoist_levels", "in_traits",
                          "out_traits", "hobbies", "appellations", "souls", "directions",
-                         "skill_types", "skill_info", "skill_grades", "skill_effects"):
+                         "skill_types", "skill_info", "skill_grades", "skill_effects", "skill_values"):
                 setattr(self, name, data.get(name, {}))
 
     def prop(self, prop_id):
@@ -775,6 +777,22 @@ def skill_rows(document, role_path, catalog):
     return result
 
 
+def _split_skill_effect_values(values):
+    """Split the game's header/effect/marker/comprehension payload without shifting slots."""
+    if not isinstance(values, list) or len(values) < 7:
+        return [], []
+    count = (len(values) - 7) // 2
+    marker = 6 + count
+    if count >= 0 and len(values) == 7 + count * 2 and values[marker] == -1:
+        return values[6:marker], values[marker + 1:]
+    try:
+        marker = values.index(-1, 6)
+    except ValueError:
+        return [], []
+    count = min(marker - 6, len(values) - marker - 1, 11)
+    return values[6:6 + count], values[marker + 1:marker + 1 + count]
+
+
 def skill_records(document, role_path, catalog):
     role_path = tuple(role_path)
     role = get_at(document.data, role_path)
@@ -795,11 +813,9 @@ def skill_records(document, role_path, catalog):
             progress = int(item.get("w", 0))
         except (KeyError, TypeError, ValueError):
             continue
-        effect_ids, effect_exp = [], []
-        if -1 in values[6:]:
-            separator = values.index(-1, 6)
-            effect_ids = [int(value) for value in values[6:separator]][:11]
-            effect_exp = [int(value) for value in values[separator + 1:separator + 1 + len(effect_ids)]]
+        raw_ids, raw_exp = _split_skill_effect_values(values)
+        effect_ids = [int(value) for value in raw_ids][:11]
+        effect_exp = [int(value) for value in raw_exp][:len(effect_ids)]
         effect_exp.extend([0] * (len(effect_ids) - len(effect_exp)))
         name = catalog.skill_info.get(str(info_id), {}).get("name") or catalog.skills.get(str(info_id), f"未知功法 #{info_id}")
         type_name = catalog.skill_types.get(str(type_id), {}).get("name", f"类型 #{type_id}")
@@ -813,12 +829,58 @@ def skill_records(document, role_path, catalog):
     return result
 
 
-def skill_effect_candidates(catalog, type_id, info_id):
+def _skill_value(catalog, token, grade_id):
+    row = catalog.skill_values.get(f"&{token}+6") or catalog.skill_values.get(f"&{token}")
+    if row:
+        values = row.get("values", [])
+        index = max(0, min(int(grade_id) - 1, len(values) - 1))
+        value = float(values[index]) if values else 0.0
+        scale = str(row.get("scale") or "x1").split("|", 1)[0]
+        try:
+            if scale.startswith("x"):
+                value *= float(scale[1:])
+        except ValueError:
+            pass
+        return value
+    try:
+        return float(token)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _skill_tip(catalog, text, grade_id):
+    def replace(match):
+        parts = match.group(1).split("|")
+        operands = parts[:-1] if len(parts) > 1 and parts[-1].startswith("f") else parts
+        values, operations = [], []
+        for index, part in enumerate(operands):
+            operation = part[0] if part[:1] in "x/+-" else None
+            values.append(_skill_value(catalog, part[1:] if operation else part, grade_id))
+            if index:
+                operations.append(operation or "+")
+        result = values[0] if values else 0.0
+        for operation, value in zip(operations, values[1:]):
+            if operation == "x": result *= value
+            elif operation == "/" and value: result /= value
+            elif operation == "+": result += value
+            elif operation == "-": result -= value
+        precision = 0
+        if parts and parts[-1].startswith("f"):
+            try:
+                precision = max(0, min(int(parts[-1][1:]), 6))
+            except ValueError:
+                pass
+        return f"{result:.{precision}f}" if precision else f"{result:.2f}".rstrip("0").rstrip(".")
+    return re.sub(r"&([^&]+)&", replace, str(text)).replace("\n", " ")
+
+
+def skill_effect_candidates(catalog, type_id, info_id, grade_id=1):
     result = {}
     for owner in (int(info_id), int(type_id), 0):
         for row in catalog.skill_effects:
             if int(row.get("skill_id", -1)) == owner:
-                result.setdefault(int(row["id"]), row.get("name") or str(row["id"]))
+                result.setdefault(int(row["id"]), _skill_tip(
+                    catalog, row.get("name") or str(row["id"]), grade_id))
     return sorted(result.items(), key=lambda row: row[0])
 
 

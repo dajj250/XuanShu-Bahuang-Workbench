@@ -10,7 +10,7 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 
 
 def version_tuple(value):
@@ -46,7 +46,7 @@ def powershell_latest_release(repository, timeout=8):
     script = (
         "$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';"
         "[Console]::OutputEncoding=[Text.Encoding]::UTF8;"
-        "$h=@{'User-Agent'='XuanShu-Workbench-Updater/1.1.1';'Accept'='application/vnd.github+json'};"
+        "$h=@{'User-Agent'='XuanShu-Workbench-Updater/1.1.2';'Accept'='application/vnd.github+json'};"
         f"$r=Invoke-RestMethod -Uri '{uri}' -Headers $h -TimeoutSec {int(timeout)};"
         "@{tag_name=$r.tag_name;html_url=$r.html_url;name=$r.name}|ConvertTo-Json -Compress"
     )
@@ -67,7 +67,7 @@ def latest_release(repository, timeout=8, opener=None):
         raise ValueError("尚未配置 GitHub 仓库")
     request = Request(
         f"https://api.github.com/repos/{repository}/releases/latest",
-        headers={"Accept": "application/vnd.github+json", "User-Agent": "XuanShu-Workbench-Updater/1.1.1"},
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "XuanShu-Workbench-Updater/1.1.2"},
     )
     if opener is None:
         try:

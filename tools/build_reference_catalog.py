@@ -37,5 +37,9 @@ data = {
         for row in connection.execute("SELECT ID, ValueID, Tips FROM SkillEffect")
         if row[1] is not None
     ],
+    "skill_values": {
+        row[1]: {"values": list(row[2:12]), "scale": row[14]}
+        for row in connection.execute("SELECT * FROM SkillValue")
+    },
 }
 destination.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

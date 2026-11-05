@@ -15,6 +15,8 @@ from .core import DataError
 
 PIPE_NAME = r"\\.\pipe\GGBH.Workbench.v1"
 MAX_MESSAGE = 1024 * 1024
+PIPE_TYPE_BYTE = 0x00000000
+PIPE_REJECT_REMOTE_CLIENTS = 0x00000008
 
 
 class LiveServer:
@@ -68,7 +70,10 @@ class LiveServer:
         kernel.CloseHandle.argtypes = [wintypes.HANDLE]
         invalid = ctypes.c_void_p(-1).value
         while not self._stop.is_set():
-            handle = kernel.CreateNamedPipeW(PIPE_NAME, 0x00000003, 0x00000000,
+            # Windows named pipes can otherwise be reached through SMB. Explicitly reject
+            # every remote machine; the per-launch random token authenticates messages.
+            handle = kernel.CreateNamedPipeW(PIPE_NAME, 0x00000003,
+                                             PIPE_TYPE_BYTE | PIPE_REJECT_REMOTE_CLIENTS,
                                              1, MAX_MESSAGE, MAX_MESSAGE, 0, None)
             if handle == invalid:
                 self.detail = f"无法创建通信管道（Windows 错误 {ctypes.get_last_error()}）"
@@ -81,7 +86,7 @@ class LiveServer:
                 self.connected = True
                 self.detail = "游戏客户端已连接"
                 hello = {"type": "hello", "requestId": uuid.uuid4().hex, "protocol": 1,
-                         "token": self.token, "payload": {"serverVersion": "1.1.1"}}
+                         "token": self.token, "payload": {"serverVersion": "1.1.2"}}
                 self._exchange(kernel, handle, hello)
                 while not self._stop.is_set():
                     try:
