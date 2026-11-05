@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import ssl
 from urllib.request import Request, urlopen
 
 
@@ -20,7 +21,21 @@ def is_newer(latest, current=APP_VERSION):
     return left + (0,) * (size - len(left)) > right + (0,) * (size - len(right))
 
 
-def latest_release(repository, timeout=8, opener=urlopen):
+def verified_ssl_context():
+    """Use Python roots plus the Windows ROOT store without disabling verification."""
+    context = ssl.create_default_context()
+    enum_certificates = getattr(ssl, "enum_certificates", None)
+    if enum_certificates:
+        certificates = []
+        for certificate, encoding, _trust in enum_certificates("ROOT"):
+            if encoding == "x509_asn":
+                certificates.append(ssl.DER_cert_to_PEM_cert(certificate))
+        if certificates:
+            context.load_verify_locations(cadata="".join(certificates))
+    return context
+
+
+def latest_release(repository, timeout=8, opener=None):
     repository = str(repository or "").strip().strip("/")
     if not repository or "/" not in repository:
         raise ValueError("尚未配置 GitHub 仓库")
@@ -28,7 +43,11 @@ def latest_release(repository, timeout=8, opener=urlopen):
         f"https://api.github.com/repos/{repository}/releases/latest",
         headers={"Accept": "application/vnd.github+json", "User-Agent": "XuanShu-Workbench-Updater/1.1.1"},
     )
-    with opener(request, timeout=timeout) as response:
+    if opener is None:
+        response_context = urlopen(request, timeout=timeout, context=verified_ssl_context())
+    else:
+        response_context = opener(request, timeout=timeout)
+    with response_context as response:
         data = json.loads(response.read().decode("utf-8"))
     tag = str(data.get("tag_name") or data.get("name") or "").strip()
     page = str(data.get("html_url") or f"https://github.com/{repository}/releases").strip()
