@@ -42,7 +42,7 @@ def resource_path(*parts):
 class Editor(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("玄枢 · 八荒编修台 1.1.2")
+        self.title("玄枢 · 八荒编修台 1.1.3")
         self.geometry("1280x850")
         self.minsize(1000, 650)
         self.configure(bg="#eef2f6")
@@ -80,7 +80,7 @@ class Editor(tk.Tk):
         header = ttk.Frame(self, padding=20)
         header.pack(fill="x")
         ttk.Label(header, text="玄枢  /  八荒编修台", font=("Microsoft YaHei UI", 21, "bold")).pack(side="left")
-        ttk.Label(header, text="1.1.2 · 官方模组桥接版", foreground="#62748c").pack(side="right")
+        ttk.Label(header, text="1.1.3 · 官方模组桥接版", foreground="#62748c").pack(side="right")
         toolbar = ttk.Frame(self, padding=(20, 0, 20, 12))
         toolbar.pack(fill="x")
         for label, action in [("读取最新存档", self.open_latest_save), ("存档列表", self.choose_save),
@@ -120,7 +120,7 @@ class Editor(tk.Tk):
             "2. 在属性、关系、功法、物品、壶妖、形象、宗门页面暂存修改。\n"
             "3. 检查修改预览，导出到新文件；原文件保持不变并生成字节备份。\n"
             "4. 游戏内修改请进入实时连接页，读取当前玩家后点击引用修改。\n\n"
-            "1.1.2 已实现\n\n基础属性实时读写；基础值和游戏显示值分开显示。\n"
+            "1.1.3 已实现\n\n基础属性实时读写；基础值和游戏显示值分开显示。\n"
             "先天气运、后天气运、逆天改命、道心四分栏，支持 ID/名称搜索及添加、替换、删除。\n"
             "属性页增加性格、爱好、关系、道心、身份五个并列栏目，统一点击引用修改。\n"
             "关系双向添加、属性页多选批量添加、好友管理和批量解除好友；普通物品新增和数量修改。\n"
