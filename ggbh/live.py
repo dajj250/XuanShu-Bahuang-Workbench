@@ -86,7 +86,7 @@ class LiveServer:
                 self.connected = True
                 self.detail = "游戏客户端已连接"
                 hello = {"type": "hello", "requestId": uuid.uuid4().hex, "protocol": 1,
-                         "token": self.token, "payload": {"serverVersion": "1.1.3"}}
+                         "token": self.token, "payload": {"serverVersion": "1.1.4"}}
                 self._exchange(kernel, handle, hello)
                 while not self._stop.is_set():
                     try:

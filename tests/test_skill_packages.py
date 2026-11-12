@@ -34,7 +34,7 @@ class SkillPackageTests(unittest.TestCase):
         skill = {"name": "月影剑", "rawValues": [101, 8, 9], "type": 1, "exp": 600}
         package = build_package("测试", source, [skill], "fire_sword")
         skill["rawValues"][0] = 0
-        self.assertEqual(package["version"], "1.1.3")
+        self.assertEqual(package["version"], "1.1.4")
         self.assertEqual(package["skills"][0]["rawValues"][0], 101)
 
 

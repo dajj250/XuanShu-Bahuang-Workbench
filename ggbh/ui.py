@@ -42,7 +42,7 @@ def resource_path(*parts):
 class Editor(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("玄枢 · 八荒编修台 1.1.3")
+        self.title("玄枢 · 八荒编修台 1.1.4")
         self.geometry("1280x850")
         self.minsize(1000, 650)
         self.configure(bg="#eef2f6")
@@ -67,6 +67,9 @@ class Editor(tk.Tk):
         self.inspector_paths = {}
         self.live = LiveServer()
         self.live_requests = {}
+        self.live_role_write_pending = 0
+        self.live_role_write_ok = 0
+        self.live_role_write_failed = 0
         self.live_after = None
         self.update_results = queue.Queue()
         self.update_repository = self.load_update_repository()
@@ -80,7 +83,7 @@ class Editor(tk.Tk):
         header = ttk.Frame(self, padding=20)
         header.pack(fill="x")
         ttk.Label(header, text="玄枢  /  八荒编修台", font=("Microsoft YaHei UI", 21, "bold")).pack(side="left")
-        ttk.Label(header, text="1.1.3 · 官方模组桥接版", foreground="#62748c").pack(side="right")
+        ttk.Label(header, text="1.1.4 · 官方模组桥接版", foreground="#62748c").pack(side="right")
         toolbar = ttk.Frame(self, padding=(20, 0, 20, 12))
         toolbar.pack(fill="x")
         for label, action in [("读取最新存档", self.open_latest_save), ("存档列表", self.choose_save),
@@ -120,7 +123,7 @@ class Editor(tk.Tk):
             "2. 在属性、关系、功法、物品、壶妖、形象、宗门页面暂存修改。\n"
             "3. 检查修改预览，导出到新文件；原文件保持不变并生成字节备份。\n"
             "4. 游戏内修改请进入实时连接页，读取当前玩家后点击引用修改。\n\n"
-            "1.1.3 已实现\n\n基础属性实时读写；基础值和游戏显示值分开显示。\n"
+            "1.1.4 已实现\n\n人物页新增‘实时引用修改（游戏人物）’，可将支持的字段直接写入当前世界已加载角色。\n"
             "先天气运、后天气运、逆天改命、道心四分栏，支持 ID/名称搜索及添加、替换、删除。\n"
             "属性页增加性格、爱好、关系、道心、身份五个并列栏目，统一点击引用修改。\n"
             "关系双向添加、属性页多选批量添加、好友管理和批量解除好友；普通物品新增和数量修改。\n"
@@ -471,7 +474,14 @@ class Editor(tk.Tk):
         self.form_frame = ttk.Frame(canvas)
         canvas.create_window(0, 0, window=self.form_frame, anchor="nw")
         self.form_frame.bind("<Configure>", lambda _: canvas.configure(scrollregion=canvas.bbox("all")))
-        ttk.Button(right, text="引用修改", command=lambda: self.guard(self.apply_role)).pack(anchor="e", pady=8)
+        role_actions = ttk.Frame(right, padding=(0, 8, 0, 0))
+        role_actions.pack(fill="x")
+        ttk.Label(role_actions, text="存档模式只进入修改预览；实时模式会立即写入游戏当前世界。",
+                  foreground="#8b5a2b").pack(side="left")
+        ttk.Button(role_actions, text="引用修改（存档副本）",
+                   command=lambda: self.guard(self.apply_role)).pack(side="right", padx=(8, 0))
+        ttk.Button(role_actions, text="实时引用修改（游戏人物）",
+                   command=lambda: self.guard(self.apply_role_live)).pack(side="right")
 
     def build_fate_tab(self):
         tab = ttk.Frame(self.book, padding=12)
@@ -2402,6 +2412,79 @@ class Editor(tk.Tk):
         self.refresh_tree()
         self.update_status()
 
+    def apply_role_live(self):
+        if not self.doc or self.role_path is None:
+            raise DataError("请先选择角色")
+        if not self.live.connected:
+            raise DataError("游戏客户端尚未连接；请启动游戏、进入存档并保持工作台打开")
+        scalar_fields = {
+            ("q", "x"): "hp", ("q", "c"): "hpMax",
+            ("q", "v"): "mp", ("q", "b"): "mpMax",
+            ("q", "n"): "sp", ("q", "m"): "spMax",
+            ("q", "1"): "attack", ("q", "2"): "defense",
+            ("q", "4"): "luck", ("q", "k"): "talent",
+            ("q", "l"): "health", ("q", "z"): "healthMax",
+            ("q", "5"): "energy", ("q", "6"): "energyMax",
+            ("q", "qx"): "mood", ("q", "qc"): "moodMax",
+        }
+        profile_fields = {
+            ("q", "f"): "inTrait", ("q", "g"): "outTrait1", ("q", "h"): "outTrait2",
+            ("q", "qv", 0): "hobby1", ("q", "qv", 1): "hobby2", ("q", "qv", 2): "hobby3",
+            ("x", "s"): "intimacyToPlayer", ("qe", "y"): "taoistId",
+            ("qe", "h"): "taoistState", ("q", "d"): "grade", ("b", "q"): "soul",
+            ("q", "r"): "sex", ("qe", "i"): "direction", ("qe", "u"): "isHero",
+        }
+        unit_id = str(self.role_path[-1])
+        commands = []
+        for path, variable in self.form:
+            suffix = tuple(path[len(self.role_path):])
+            field = scalar_fields.get(suffix)
+            if not field:
+                continue
+            try:
+                value = int(variable.get())
+            except ValueError as exc:
+                raise DataError(f"实时属性 {field} 必须是整数") from exc
+            commands.append(("setRuntimeRoleScalar", {"unitId": unit_id, "field": field, "value": value}))
+        profile_values = {}
+        for path, variable, mode in self.special_form:
+            if mode != "set":
+                continue
+            suffix = tuple(path[len(self.role_path):])
+            field = profile_fields.get(suffix)
+            if not field:
+                continue
+            try:
+                value = int(self.value_id(variable.get()))
+            except ValueError as exc:
+                raise DataError(f"实时身份字段 {field} 必须选择有效编号") from exc
+            profile_values[field] = value
+            commands.append(("setRuntimeRoleProfileField", {"unitId": unit_id, "field": field, "value": value}))
+        if profile_values.get("isHero") not in (None, 0, 1) and profile_values.get("taoistId", 0) == 0:
+            raise DataError("设为天骄前必须选择非零道种")
+        if not commands:
+            raise DataError("当前人物没有客户端支持的实时字段")
+        self.live_role_write_pending = len(commands)
+        self.live_role_write_ok = 0
+        self.live_role_write_failed = 0
+        for command, payload in commands:
+            self.live_send_as(command, payload, "roleWrite")
+        self.status.set(f"已发送 {len(commands)} 项实时人物修改，等待游戏主线程处理")
+
+    def finish_live_role_write(self, succeeded):
+        if succeeded:
+            self.live_role_write_ok += 1
+        else:
+            self.live_role_write_failed += 1
+        self.live_role_write_pending = max(0, self.live_role_write_pending - 1)
+        if self.live_role_write_pending == 0:
+            self.status.set(f"实时人物修改完成：成功 {self.live_role_write_ok} 项，失败 {self.live_role_write_failed} 项")
+            messagebox.showinfo(
+                "实时人物修改完成",
+                f"成功：{self.live_role_write_ok}\n失败：{self.live_role_write_failed}\n\n请回到游戏确认结果并手动保存。",
+                parent=self,
+            )
+
     def refresh_tree(self):
         self.tree.delete(*self.tree.get_children())
         self.nodes.clear()
@@ -3149,8 +3232,12 @@ class Editor(tk.Tk):
                 self.live_output.insert("end", f"\n\n[{command}] 成功\n{json.dumps(payload, ensure_ascii=False, indent=2)}")
                 if command in ("setPlayerScalar", "setPlayerProfileField", "refillPlayer"):
                     self.live_send("getPlayer")
+                if command == "roleWrite":
+                    self.finish_live_role_write(True)
             else:
                 self.live_output.insert("end", f"\n\n[{command}] 失败：{response.get('errorCode')} · {response.get('message')}")
+                if command == "roleWrite":
+                    self.finish_live_role_write(False)
             self.live_output.see("end")
             self.live_output.configure(state="disabled")
         if self.winfo_exists():

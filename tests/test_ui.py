@@ -1,5 +1,6 @@
 from pathlib import Path
 import tempfile
+import tkinter as tk
 import unittest
 
 from ggbh.core import Document
@@ -7,6 +8,34 @@ from ggbh.ui import Editor
 
 
 class InterfaceTests(unittest.TestCase):
+    def test_role_live_write_routes_supported_fields_to_client(self):
+        app = Editor()
+        try:
+            app.withdraw()
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "role.json"
+                path.write_text('{"allUnit":{"npc":{"q":{"x":10,"1":2}}}}', encoding="utf-8")
+                app.doc = Document(path)
+                app.role_path = ("allUnit", "npc")
+                app.form = [
+                    (("allUnit", "npc", "q", "x"), tk.StringVar(app, value="88")),
+                    (("allUnit", "npc", "q", "1"), tk.StringVar(app, value="66")),
+                ]
+                app.special_form = [
+                    (("allUnit", "npc", "q", "f"), tk.StringVar(app, value="内在 · 7"), "set"),
+                    (("allUnit", "npc", "qe", "y"), tk.StringVar(app, value="道种 · 9"), "set"),
+                    (("allUnit", "npc", "qe", "u"), tk.StringVar(app, value="是 · 2"), "set"),
+                ]
+                app.live.connected = True
+                sent = []
+                app.live_send_as = lambda command, payload, response: sent.append((command, payload, response))
+                app.apply_role_live()
+                self.assertEqual(len(sent), 5)
+                self.assertIn(("setRuntimeRoleScalar", {"unitId": "npc", "field": "hp", "value": 88}, "roleWrite"), sent)
+                self.assertIn(("setRuntimeRoleProfileField", {"unitId": "npc", "field": "isHero", "value": 2}, "roleWrite"), sent)
+        finally:
+            app.destroy()
+
     def test_relation_tree_plain_click_selection_accumulates(self):
         app = Editor()
         try:
