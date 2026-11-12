@@ -7,6 +7,21 @@ from ggbh.ui import Editor
 
 
 class InterfaceTests(unittest.TestCase):
+    def test_relation_tree_plain_click_selection_accumulates(self):
+        app = Editor()
+        try:
+            app.withdraw()
+            tree = app.relation_widgets["好友"]["tree"]
+            tree.insert("", "end", iid="0", values=("甲", "a", 100))
+            tree.insert("", "end", iid="1", values=("乙", "b", 200))
+            self.assertEqual(app.toggle_tree_item(tree, "0"), "break")
+            app.toggle_tree_item(tree, "1")
+            self.assertEqual(set(tree.selection()), {"0", "1"})
+            app.toggle_tree_item(tree, "0")
+            self.assertEqual(tree.selection(), ("1",))
+        finally:
+            app.destroy()
+
     def test_school_workspace_tabs_filter_sort_and_selection_scope(self):
         app = Editor()
         try:

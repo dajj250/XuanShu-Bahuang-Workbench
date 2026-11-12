@@ -509,7 +509,7 @@ class Editor(tk.Tk):
         self.book.add(tab, text="关系")
         self.relation_title = tk.StringVar(value="先选择角色，再管理分类关系")
         ttk.Label(tab, textvariable=self.relation_title, font=("Microsoft YaHei UI", 13, "bold")).pack(anchor="w")
-        ttk.Label(tab, text="每种关系独立显示；勾选双向关系时会同步建立或删除对应的反向关系。",
+        ttk.Label(tab, text="每种关系独立显示；单击一行可连续多选，再点一次取消；勾选双向关系时会同步建立或删除反向关系。",
                   foreground="#62748c").pack(anchor="w", pady=(4, 10))
         relation_book = ttk.Notebook(tab)
         relation_book.pack(fill="both", expand=True)
@@ -525,6 +525,7 @@ class Editor(tk.Tk):
             tree.configure(yscrollcommand=scroll.set)
             scroll.pack(side="right", fill="y")
             tree.pack(fill="both", expand=True)
+            tree.bind("<Button-1>", lambda event, current=tree: self.toggle_tree_click(current, event))
             controls = ttk.LabelFrame(page, text=f"{kind}关系操作", padding=8)
             controls.pack(fill="x", pady=(10, 0))
             bidirectional = tk.BooleanVar(value=True)
@@ -548,6 +549,21 @@ class Editor(tk.Tk):
                 "tree": tree, "rows": [], "bidirectional": bidirectional,
                 "target": target, "target_box": target_box, "intimacy": intimacy,
             }
+
+    @staticmethod
+    def toggle_tree_item(tree, item):
+        """Checkbox-like multi-selection: ordinary clicks accumulate without Ctrl."""
+        if not item:
+            return "break"
+        if item in tree.selection():
+            tree.selection_remove(item)
+        else:
+            tree.selection_add(item)
+        tree.focus(item)
+        return "break"
+
+    def toggle_tree_click(self, tree, event):
+        return self.toggle_tree_item(tree, tree.identify_row(event.y))
 
     def build_potmon_tab(self):
         self.potmon_tab = ttk.Frame(self.book, padding=12)
@@ -1777,7 +1793,7 @@ class Editor(tk.Tk):
         outer.pack(fill="both", expand=True)
         ttk.Label(outer, text=f"{'批量添加' if multiple else '搜索角色'} · {kind}",
                   font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
-        hint = "使用 Ctrl / Shift 多选；" if multiple else "双击角色也可完成选择；"
+        hint = "单击一行可连续多选，再点一次取消；" if multiple else "双击角色也可完成选择；"
         ttk.Label(outer, text=f"可按姓名或编号搜索，并按好感、性别或修为排列；{hint}红色角色表示已存在于当前关系表。",
                   foreground="#62748c").pack(anchor="w", pady=(3, 10))
         filters = ttk.Frame(outer)
@@ -1809,6 +1825,8 @@ class Editor(tk.Tk):
         tree.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
         tree.pack(fill="both", expand=True)
+        if multiple:
+            tree.bind("<Button-1>", lambda event: self.toggle_tree_click(tree, event))
         candidate_rows = []
         owned_ids = {str(row["id"]) for row in relationship_tables(self.doc, self.role_path)[kind]}
         current = get_at(self.doc.data, self.role_path)
