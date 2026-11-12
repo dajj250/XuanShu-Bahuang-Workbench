@@ -14,12 +14,13 @@ class InterfaceTests(unittest.TestCase):
             app.withdraw()
             with tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / "role.json"
-                path.write_text('{"allUnit":{"npc":{"q":{"x":10,"1":2}}}}', encoding="utf-8")
+                path.write_text('{"allUnit":{"npc":{"q":{"x":10,"1":2,"qa":12}}}}', encoding="utf-8")
                 app.doc = Document(path)
                 app.role_path = ("allUnit", "npc")
                 app.form = [
                     (("allUnit", "npc", "q", "x"), tk.StringVar(app, value="88")),
                     (("allUnit", "npc", "q", "1"), tk.StringVar(app, value="66")),
+                    (("allUnit", "npc", "q", "qa"), tk.StringVar(app, value="99")),
                 ]
                 app.special_form = [
                     (("allUnit", "npc", "q", "f"), tk.StringVar(app, value="内在 · 7"), "set"),
@@ -30,9 +31,42 @@ class InterfaceTests(unittest.TestCase):
                 sent = []
                 app.live_send_as = lambda command, payload, response: sent.append((command, payload, response))
                 app.apply_role_live()
-                self.assertEqual(len(sent), 5)
+                self.assertEqual(len(sent), 6)
                 self.assertIn(("setRuntimeRoleScalar", {"unitId": "npc", "field": "hp", "value": 88}, "roleWrite"), sent)
+                self.assertIn(("setRuntimeRoleScalar", {"unitId": "npc", "field": "basisSword", "value": 99}, "roleWrite"), sent)
                 self.assertIn(("setRuntimeRoleProfileField", {"unitId": "npc", "field": "isHero", "value": 2}, "roleWrite"), sent)
+        finally:
+            app.destroy()
+
+    def test_role_live_write_ignores_unchanged_decimal_intimacy(self):
+        app = Editor()
+        try:
+            app.withdraw()
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "role.json"
+                path.write_text('{"allUnit":{"npc":{"q":{"x":10},"x":{"s":300.0}}}}', encoding="utf-8")
+                app.doc = Document(path)
+                app.role_path = ("allUnit", "npc")
+                hp = tk.StringVar(app, value="88")
+                intimacy = tk.StringVar(app, value="300.0")
+                app.form = [(('allUnit', 'npc', 'q', 'x'), hp)]
+                app.special_form = [(('allUnit', 'npc', 'x', 's'), intimacy, "set")]
+                app.live.connected = True
+                sent = []
+                app.live_send_as = lambda command, payload, response: sent.append((command, payload, response))
+                app.apply_role_live()
+                self.assertEqual(sent, [
+                    ("setRuntimeRoleScalar", {"unitId": "npc", "field": "hp", "value": 88}, "roleWrite")
+                ])
+
+                sent.clear()
+                hp.set("10")
+                intimacy.set("450.0")
+                app.apply_role_live()
+                self.assertEqual(sent, [
+                    ("setRuntimeRoleProfileField",
+                     {"unitId": "npc", "field": "intimacyToPlayer", "value": 450}, "roleWrite")
+                ])
         finally:
             app.destroy()
 

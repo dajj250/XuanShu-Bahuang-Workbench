@@ -2426,6 +2426,19 @@ class Editor(tk.Tk):
             ("q", "l"): "health", ("q", "z"): "healthMax",
             ("q", "5"): "energy", ("q", "6"): "energyMax",
             ("q", "qx"): "mood", ("q", "qc"): "moodMax",
+            ("q", "y"): "age", ("q", "u"): "life",
+            ("q", "i"): "beauty", ("q", "a"): "reputation",
+            ("q", "3"): "moveSpeed", ("q", "7"): "crit",
+            ("q", "9"): "guard", ("q", "j"): "abilityPoint",
+            ("q", "qd"): "basisBlade", ("q", "qs"): "basisSpear",
+            ("q", "qa"): "basisSword", ("q", "qf"): "basisFist",
+            ("q", "qg"): "basisPalm", ("q", "qh"): "basisFinger",
+            ("q", "qt"): "basisFire", ("q", "qi"): "basisFroze",
+            ("q", "qu"): "basisThunder", ("q", "qy"): "basisWind",
+            ("q", "qo"): "basisEarth", ("q", "qp"): "basisWood",
+            ("q", "qj"): "refineElixir", ("q", "qk"): "refineWeapon",
+            ("q", "ql"): "geomancy", ("q", "qz"): "symbol",
+            ("q", "wq"): "herbal", ("q", "ww"): "mine",
         }
         profile_fields = {
             ("q", "f"): "inTrait", ("q", "g"): "outTrait1", ("q", "h"): "outTrait2",
@@ -2441,8 +2454,15 @@ class Editor(tk.Tk):
             field = scalar_fields.get(suffix)
             if not field:
                 continue
+            raw_value = variable.get().strip()
             try:
-                value = int(variable.get())
+                original_value = get_at(self.doc.data, path)
+            except (KeyError, TypeError, IndexError):
+                original_value = object()
+            if raw_value == str(original_value).strip():
+                continue
+            try:
+                value = int(raw_value)
             except ValueError as exc:
                 raise DataError(f"实时属性 {field} 必须是整数") from exc
             commands.append(("setRuntimeRoleScalar", {"unitId": unit_id, "field": field, "value": value}))
@@ -2454,14 +2474,38 @@ class Editor(tk.Tk):
             field = profile_fields.get(suffix)
             if not field:
                 continue
+            raw_value = self.value_id(variable.get())
             try:
-                value = int(self.value_id(variable.get()))
+                original_value = get_at(self.doc.data, path)
+            except (KeyError, TypeError, IndexError):
+                original_value = object()
+            if raw_value == str(original_value).strip():
+                continue
+            try:
+                if field == "intimacyToPlayer":
+                    numeric_value = float(raw_value)
+                    if not numeric_value.is_integer():
+                        raise ValueError
+                    value = int(numeric_value)
+                    if not -1000 <= value <= 1000:
+                        raise DataError("对主角好感必须在 -1000 到 1000 之间")
+                else:
+                    value = int(raw_value)
             except ValueError as exc:
+                if field == "intimacyToPlayer":
+                    raise DataError("对主角好感必须填写整数，例如 300") from exc
                 raise DataError(f"实时身份字段 {field} 必须选择有效编号") from exc
             profile_values[field] = value
             commands.append(("setRuntimeRoleProfileField", {"unitId": unit_id, "field": field, "value": value}))
-        if profile_values.get("isHero") not in (None, 0, 1) and profile_values.get("taoistId", 0) == 0:
-            raise DataError("设为天骄前必须选择非零道种")
+        if profile_values.get("isHero") not in (None, 0, 1):
+            seed_id = profile_values.get("taoistId")
+            if seed_id is None:
+                try:
+                    seed_id = int(get_at(self.doc.data, self.role_path + ("qe", "y")))
+                except (KeyError, TypeError, ValueError, IndexError):
+                    seed_id = 0
+            if seed_id == 0:
+                raise DataError("设为天骄前必须选择非零道种")
         if not commands:
             raise DataError("当前人物没有客户端支持的实时字段")
         self.live_role_write_pending = len(commands)
