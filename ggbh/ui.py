@@ -616,10 +616,15 @@ class Editor(tk.Tk):
             self.potmon_skill_tree.heading(column, text=title)
             self.potmon_skill_tree.column(column, width=width, stretch=column == "name")
         self.potmon_skill_tree.pack(fill="both", expand=True)
+        self.potmon_skill_tree.bind("<Button-1>", lambda event: self.toggle_tree_click(self.potmon_skill_tree, event))
         skill_buttons = ttk.Frame(skills, padding=(0, 7, 0, 0))
         skill_buttons.pack(fill="x")
         ttk.Button(skill_buttons, text="添加技能", command=lambda: self.guard(self.open_potmon_skill_dialog)).pack(side="left")
         ttk.Button(skill_buttons, text="删除所选", command=lambda: self.guard(self.delete_selected_potmon_skills)).pack(side="left", padx=7)
+        ttk.Button(skill_buttons, text="全选", command=lambda: self.potmon_skill_tree.selection_set(
+            self.potmon_skill_tree.get_children())).pack(side="right")
+        ttk.Button(skill_buttons, text="清空选择", command=lambda: self.potmon_skill_tree.selection_remove(
+            self.potmon_skill_tree.selection())).pack(side="right", padx=7)
         self.potmon_skill_rows = []
 
         self.potmon_contract = tk.BooleanVar()
@@ -1688,7 +1693,7 @@ class Editor(tk.Tk):
         outer = ttk.Frame(dialog, padding=16)
         outer.pack(fill="both", expand=True)
         ttk.Label(outer, text="选择壶妖技能", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w")
-        ttk.Label(outer, text="可按名称、编号或拼音首字母搜索，使用 Ctrl / Shift 多选；红色表示已经拥有。",
+        ttk.Label(outer, text="可按名称、编号或拼音首字母搜索；直接逐项点击即可多选，红色表示已经拥有。",
                   foreground="#62748c").pack(anchor="w", pady=(3, 10))
         filters = ttk.Frame(outer)
         filters.pack(fill="x", pady=(0, 8))
@@ -1703,6 +1708,7 @@ class Editor(tk.Tk):
             tree.column(column, width=width, stretch=column == "name")
         tree.tag_configure("owned", foreground="#c62828")
         tree.pack(fill="both", expand=True)
+        tree.bind("<Button-1>", lambda event: self.toggle_tree_click(tree, event))
         catalog = potmon_catalog(self.game_path.get())
         candidates = []
         owned = {(skill["type"], skill["id"]) for skill in self.potmon_skill_rows}
@@ -1740,6 +1746,8 @@ class Editor(tk.Tk):
 
         buttons = ttk.Frame(outer, padding=(0, 10, 0, 0))
         buttons.pack(fill="x")
+        ttk.Button(buttons, text="全选", command=lambda: tree.selection_set(tree.get_children())).pack(side="left")
+        ttk.Button(buttons, text="清空选择", command=lambda: tree.selection_remove(tree.selection())).pack(side="left", padx=7)
         ttk.Button(buttons, text="取消", command=dialog.destroy).pack(side="right")
         ttk.Button(buttons, text="添加所选技能", command=commit).pack(side="right", padx=8)
 
@@ -1958,6 +1966,9 @@ class Editor(tk.Tk):
                                     "\n".join(skipped[:12]), parent=self)
 
         tree.bind("<Double-1>", lambda _event: commit() if not multiple else None)
+        if multiple:
+            ttk.Button(buttons, text="全选", command=lambda: tree.selection_set(tree.get_children())).pack(side="left")
+            ttk.Button(buttons, text="清空选择", command=lambda: tree.selection_remove(tree.selection())).pack(side="left", padx=7)
         ttk.Button(buttons, text="取消", command=dialog.destroy).pack(side="right")
         ttk.Button(buttons, text="确认批量添加" if multiple else "选中角色", command=commit).pack(side="right", padx=8)
         search_entry.focus_set()
@@ -2335,7 +2346,7 @@ class Editor(tk.Tk):
 
         if action in ("add", "replace"):
             candidate_tree, candidate_query = make_tree(
-                content, "可选择的气运资料 · 添加时可用 Ctrl / Shift 多选",
+                content, "可选择的气运资料 · 添加时可直接逐项点击多选",
                 "extended" if action == "add" else "browse")
             candidate_tree.tag_configure("owned", foreground="#c62828")
             owned_ids = {int(entry["id"]) for entry in current_entries}
@@ -2350,9 +2361,16 @@ class Editor(tk.Tk):
 
             candidate_query.trace_add("write", fill_candidates)
             fill_candidates()
+            if action == "add":
+                candidate_tree.bind("<Button-1>", lambda event: self.toggle_tree_click(candidate_tree, event))
 
         buttons = ttk.Frame(outer, padding=(0, 12, 0, 0))
         buttons.pack(fill="x")
+        if action == "add":
+            ttk.Button(buttons, text="全选", command=lambda: candidate_tree.selection_set(
+                candidate_tree.get_children())).pack(side="left")
+            ttk.Button(buttons, text="清空选择", command=lambda: candidate_tree.selection_remove(
+                candidate_tree.selection())).pack(side="left", padx=7)
 
         def selected_current():
             selection = current_tree.selection() if current_tree else ()
@@ -2710,6 +2728,7 @@ class Editor(tk.Tk):
         self.items_tree.configure(yscrollcommand=bag_scroll.set)
         bag_scroll.pack(side="right", fill="y")
         self.items_tree.pack(fill="both", expand=True)
+        self.items_tree.bind("<Button-1>", lambda event: self.toggle_tree_click(self.items_tree, event))
         self.items_tree.bind("<<TreeviewSelect>>", self.select_item)
         bag_bottom = ttk.Frame(bag, padding=(0, 9, 0, 0))
         bag_bottom.pack(fill="x")
@@ -2718,6 +2737,10 @@ class Editor(tk.Tk):
         ttk.Entry(bag_bottom, textvariable=self.item_quantity, width=12).pack(side="left")
         ttk.Button(bag_bottom, text="修改所选数量", command=lambda: self.guard(self.apply_quantity)).pack(side="left", padx=8)
         ttk.Button(bag_bottom, text="强制删除所选", command=lambda: self.guard(self.force_delete_inventory_items)).pack(side="left", padx=4)
+        ttk.Button(bag_bottom, text="全选", command=lambda: self.items_tree.selection_set(
+            self.items_tree.get_children())).pack(side="right")
+        ttk.Button(bag_bottom, text="清空选择", command=lambda: self.items_tree.selection_remove(
+            self.items_tree.selection())).pack(side="right", padx=7)
 
         catalog_filters = ttk.Frame(catalog)
         catalog_filters.pack(fill="x", pady=(0, 7))
@@ -2748,6 +2771,7 @@ class Editor(tk.Tk):
         self.catalog_items_tree.configure(yscrollcommand=catalog_scroll.set)
         catalog_scroll.pack(side="right", fill="y")
         self.catalog_items_tree.pack(fill="both", expand=True)
+        self.catalog_items_tree.bind("<Button-1>", lambda event: self.toggle_tree_click(self.catalog_items_tree, event))
         catalog_bottom = ttk.Frame(catalog, padding=(0, 9, 0, 0))
         catalog_bottom.pack(fill="x")
         ttk.Label(catalog_bottom, text="添加数量").pack(side="left")
@@ -2755,7 +2779,10 @@ class Editor(tk.Tk):
         ttk.Entry(catalog_bottom, textvariable=self.catalog_item_quantity, width=12).pack(side="left", padx=6)
         ttk.Button(catalog_bottom, text="添加所选物品", command=lambda: self.guard(
             self.add_selected_catalog_items)).pack(side="left", padx=4)
-        ttk.Label(catalog_bottom, text="Ctrl / Shift 多选", foreground="#62748c").pack(side="right")
+        ttk.Button(catalog_bottom, text="全选", command=lambda: self.catalog_items_tree.selection_set(
+            self.catalog_items_tree.get_children())).pack(side="right")
+        ttk.Button(catalog_bottom, text="清空选择", command=lambda: self.catalog_items_tree.selection_remove(
+            self.catalog_items_tree.selection())).pack(side="right", padx=7)
         self.filter_catalog_items()
 
     def show_inventory(self):
@@ -2946,7 +2973,14 @@ class Editor(tk.Tk):
             self.package_skill_tree.heading(key, text=label)
             self.package_skill_tree.column(key, width=width, stretch=key == "name")
         self.package_skill_tree.pack(fill="both", expand=True)
+        self.package_skill_tree.bind("<Button-1>", lambda event: self.toggle_tree_click(self.package_skill_tree, event))
         self.package_skill_tree.bind("<<TreeviewSelect>>", lambda _event: self.select_package_skill())
+        package_select = ttk.Frame(left, padding=(0, 7, 0, 0))
+        package_select.pack(fill="x")
+        ttk.Button(package_select, text="全选", command=lambda: self.package_skill_tree.selection_set(
+            self.package_skill_tree.get_children())).pack(side="left")
+        ttk.Button(package_select, text="清空选择", command=lambda: self.package_skill_tree.selection_remove(
+            self.package_skill_tree.selection())).pack(side="left", padx=7)
 
         self.package_name = tk.StringVar(value="我的技能包")
         self.package_grade = tk.StringVar()
@@ -3290,7 +3324,7 @@ class Editor(tk.Tk):
     def build_diagnostics_tab(self):
         tab = ttk.Frame(self.book, padding=20)
         self.book.add(tab, text="游戏与连接检测")
-        ttk.Label(tab, text="检测当前 GGBH Bridge、实时连接和 ModExportData；不安装组件、不发送修改指令。", wraplength=1000).pack(anchor="w", pady=(0, 14))
+        ttk.Label(tab, text="检测当前玄枢 GameBridge、实时连接和 ModExportData；不安装组件、不发送修改指令。", wraplength=1000).pack(anchor="w", pady=(0, 14))
         row = ttk.Frame(tab)
         row.pack(fill="x")
         self.game_path = tk.StringVar(value=str(DEFAULT_GAME))
@@ -3299,7 +3333,7 @@ class Editor(tk.Tk):
         ttk.Button(row, text="开始检测", command=lambda: self.guard(self.diagnose)).pack(side="left", padx=8)
         self.diagnostic_text = tk.Text(tab, wrap="word", font=("Microsoft YaHei UI", 11), borderwidth=0, background="#f9fbfd")
         self.diagnostic_text.pack(fill="both", expand=True, pady=16)
-        self.diagnostic_text.insert("end", "点击开始检测。\n\n当前方案使用 Mods/GGBH.BridgeMod.dll 与工作台命名管道通信，不依赖旧版 HTScript.dll。")
+        self.diagnostic_text.insert("end", "点击开始检测。\n\n当前方案使用 Mods/XuanShu.GameBridge.dll 与工作台命名管道通信，不依赖旧版 HTScript.dll。")
         self.diagnostic_text.configure(state="disabled")
 
     def choose_game(self):

@@ -16,6 +16,7 @@ from ggbh.features import (potmon_records, set_potmon_contract, update_potmon, p
                            add_potmon_skills, delete_potmon_skills, appearance_data, update_appearance)
 from ggbh.features import (school_data, update_school, update_school_main_skills, school_members,
                            school_batch_genius, school_batch_salary, school_batch_friend, import_roles)
+from ggbh.features import installation_status
 from ggbh.protocol import unpack_string
 
 
@@ -44,6 +45,16 @@ class FeatureTests(unittest.TestCase):
         self.doc.reset()
         self.assertEqual(self.doc.data["allUnit"]["b"]["q"]["x"], 5)
         self.assertEqual(self.doc.data["allUnit"]["a"]["q"]["1"], 20)
+
+    def test_installation_status_accepts_current_and_legacy_bridge_names(self):
+        game = self.root / "game"
+        mods = game / "Mods"
+        mods.mkdir(parents=True)
+        (mods / "XuanShu.GameBridge.dll").touch()
+        self.assertTrue(installation_status(game)["玄枢 GameBridge 游戏客户端"])
+        (mods / "XuanShu.GameBridge.dll").unlink()
+        (mods / "GGBH.BridgeMod.dll").touch()
+        self.assertTrue(installation_status(game)["玄枢 GameBridge 游戏客户端"])
 
     def test_repeated_edit_tracks_original(self):
         p = self.a + ("q", "1")

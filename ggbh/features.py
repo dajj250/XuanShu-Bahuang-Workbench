@@ -520,11 +520,15 @@ def installation_status(game_path):
     required = {
         "游戏程序": game / "guigubahuang.exe",
         "MelonLoader": game / "MelonLoader",
-        "GGBH Bridge 游戏客户端": game / "Mods/GGBH.BridgeMod.dll",
         "游戏托管程序集": game / "MelonLoader/Managed/Assembly-CSharp.dll",
         "JSON 通信依赖": game / "MelonLoader/Managed/Newtonsoft.Json.dll",
     }
-    return {label: path.exists() for label, path in required.items()}
+    status = {label: path.exists() for label, path in required.items()}
+    status["玄枢 GameBridge 游戏客户端"] = any(
+        (game / "Mods" / name).is_file()
+        for name in ("XuanShu.GameBridge.dll", "GGBH.BridgeMod.dll")
+    )
+    return status
 
 
 def discover_mods(game_path):
