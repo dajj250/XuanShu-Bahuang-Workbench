@@ -1,0 +1,2 @@
+a2bf83e3791f4f018b39a5cabae184f96b714de33b1eb98198ed6b66ce3148cb  XuanShu-Workbench-Server-v1.1.6.zip
+e5d987237dde9471ac1a567262cb55f6de8ad643443392807857caca8f1d5c85  XuanShu-Legacy-Download-v1.1.6.zip
