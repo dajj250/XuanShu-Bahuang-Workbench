@@ -2960,7 +2960,8 @@ class Editor(tk.Tk):
                                                   state="readonly", width=28)
         self.package_template_box.pack(side="left")
         self.package_template_box.bind("<<ComboboxSelected>>", lambda _event: self.show_skill_template())
-        ttk.Button(template_bar, text="按模板选择来源技能", command=lambda: self.guard(self.apply_skill_template_filter)).pack(side="left", padx=7)
+        ttk.Button(template_bar, text="一键最高级赋予所选角色", command=lambda: self.guard(
+            self.apply_random_skill_template)).pack(side="left", padx=7)
         self.package_template_note = tk.StringVar()
         ttk.Label(template_bar, textvariable=self.package_template_note, foreground="#375f88", wraplength=640).pack(side="left", padx=8)
 
@@ -3002,7 +3003,7 @@ class Editor(tk.Tk):
         file_actions.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(12, 5))
         ttk.Button(file_actions, text="保存技能包文件", command=lambda: self.guard(self.save_skill_package_file)).pack(side="left")
         ttk.Button(file_actions, text="载入技能包文件", command=lambda: self.guard(self.load_skill_package_file)).pack(side="left", padx=6)
-        ttk.Button(right, text="一键复制所选技能到人物 B", command=lambda: self.guard(self.apply_skill_package_to_target)).grid(
+        ttk.Button(right, text="直接赋予当前技能包给所选角色", command=lambda: self.guard(self.apply_skill_package_to_target)).grid(
             row=8, column=0, columnspan=2, sticky="ew", pady=8)
         self.show_skill_template()
 
@@ -3024,20 +3025,15 @@ class Editor(tk.Tk):
         slots = "、".join(f"{slot}:{'/'.join(names)}" for slot, names, _required, _recommended in template["slots"])
         self.package_template_note.set(f"{template['summary']}  核心：{slots}")
 
-    def apply_skill_template_filter(self):
-        if not self.runtime_source_skills:
-            raise DataError("请先读取人物 A 的技能")
+    def apply_random_skill_template(self):
+        target = self.selected_runtime_role(self.package_target_role.get())
+        if not target:
+            raise DataError("请先选择一个目标角色")
         template = next(row for row in self.skill_package_templates if row["name"] == self.package_template.get())
-        matched, missing = select_template_skills(template, self.runtime_source_skills)
-        self.package_skill_tree.selection_remove(*self.package_skill_tree.selection())
-        matched_ids = {id(row) for row in matched}
-        for index, row in enumerate(self.runtime_source_skills):
-            if id(row) in matched_ids:
-                self.package_skill_tree.selection_add(str(index))
-        self.status.set(f"模板“{template['name']}”已匹配 {len(matched)} 项；缺少 {len(missing)} 项")
-        if missing:
-            messagebox.showinfo("模板匹配结果", "未在人物 A 中找到：\n" + "\n".join(missing) +
-                                "\n\n可更换来源角色，或手动补选相近功法。", parent=self)
+        slots = [{"slot": slot, "names": list(names)} for slot, names, _required, _recommended in template["slots"]]
+        self.live_send_as("applyRandomSkillTemplate", {"targetUnitId": target["unitId"], "slots": slots},
+                          "applyRandomSkillTemplate")
+        self.status.set(f"正在为 {target.get('name') or target['unitId']} 随机生成最高级“{template['name']}”技能")
 
     def fill_package_skills(self, skills):
         self.runtime_source_skills = list(skills or [])

@@ -71,6 +71,41 @@ class InterfaceTests(unittest.TestCase):
         finally:
             app.destroy()
 
+    def test_skill_package_applies_only_to_selected_target(self):
+        app = Editor()
+        try:
+            app.withdraw()
+            app.runtime_roles = [{"unitId": "source", "name": "A"}, {"unitId": "target", "name": "B"}]
+            app.package_source_role.set("A · source")
+            app.package_target_role.set("B · target")
+            app.runtime_source_skills = [{"soleId": "skill", "name": "演示剑", "type": 1, "level": 1,
+                                          "baseId": 100, "grade": 1, "exp": 0, "rawValues": [100, 1]}]
+            sent = []
+            app.live_send_as = lambda command, payload, response: sent.append((command, payload, response))
+            app.apply_skill_package_to_target()
+            self.assertEqual(sent[0][1]["targetUnitId"], "target")
+            self.assertEqual(len(sent[0][1]["skills"]), 1)
+        finally:
+            app.destroy()
+
+    def test_random_template_targets_one_role_without_source(self):
+        app = Editor()
+        try:
+            app.withdraw()
+            app.runtime_roles = [{"unitId": "target", "name": "目标"}]
+            app.package_target_role.set("目标 · target")
+            app.skill_package_templates = [{"id": "demo", "name": "演示流派", "summary": "",
+                                            "slots": (("武技", ("演示剑",), (), ()),)}]
+            app.package_template.set("演示流派")
+            sent = []
+            app.live_send_as = lambda command, payload, response: sent.append((command, payload, response))
+            app.apply_random_skill_template()
+            self.assertEqual(sent, [("applyRandomSkillTemplate",
+                                     {"targetUnitId": "target", "slots": [{"slot": "武技", "names": ["演示剑"]}]},
+                                     "applyRandomSkillTemplate")])
+        finally:
+            app.destroy()
+
     def test_relation_tree_plain_click_selection_accumulates(self):
         app = Editor()
         try:
