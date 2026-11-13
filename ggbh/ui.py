@@ -573,6 +573,8 @@ class Editor(tk.Tk):
         return "break"
 
     def toggle_tree_click(self, tree, event):
+        if event.state & 0x0005:  # Shift or Control keeps ttk's native range/additive selection.
+            return None
         return self.toggle_tree_item(tree, tree.identify_row(event.y))
 
     def build_potmon_tab(self):

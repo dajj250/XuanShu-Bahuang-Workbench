@@ -1,6 +1,7 @@
 from pathlib import Path
 import tempfile
 import tkinter as tk
+from types import SimpleNamespace
 import unittest
 
 from ggbh.core import Document
@@ -82,6 +83,7 @@ class InterfaceTests(unittest.TestCase):
             self.assertEqual(set(tree.selection()), {"0", "1"})
             app.toggle_tree_item(tree, "0")
             self.assertEqual(tree.selection(), ("1",))
+            self.assertIsNone(app.toggle_tree_click(tree, SimpleNamespace(state=0x0004, y=0)))
         finally:
             app.destroy()
 
