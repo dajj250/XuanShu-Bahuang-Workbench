@@ -3348,7 +3348,8 @@ class Editor(tk.Tk):
         lines = [f"{'已找到' if found else '未找到'}  {label}" for label, found in status.items()]
         lines += ["", f"实时通信：{'游戏客户端已连接' if self.live.connected else '尚未连接'}",
                   f"连接详情：{self.live.detail}",
-                  "通信方案：GGBH.Workbench.v1 本机命名管道；指令在游戏主线程执行。"]
+                  "通信方案：GGBH.Workbench.v1 本机命名管道；指令在游戏主线程执行。",
+                  "客户端选择：创意工坊、网盘/本地导入、MelonLoader 兼容版只能启用一个；服务端也只运行一个实例。"]
         mods = discover_mods(self.game_path.get())
         lines += ["", f"自动识别到 {len(mods)} 个 ModExportData 目录："]
         for mod in mods[:80]:
